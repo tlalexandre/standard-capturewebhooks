@@ -209,6 +209,19 @@ class myOrder
         $authAlgo = $headers['Paypal-Auth-Algo'] ?? '';
         $webhookId = '80807288RF140422P'; // Replace with your actual webhook ID from PayPal Developer Dashboard
 
+        // Map PayPal's auth algorithm to OpenSSL's algorithm
+        $opensslAlgo = match ($authAlgo) {
+            'SHA256withRSA' => OPENSSL_ALGO_SHA256,
+            default => null,
+        };
+
+        if ($opensslAlgo === null) {
+            error_log("Unknown PayPal auth algorithm: $authAlgo");
+            http_response_code(400);
+            echo "Unknown auth algorithm.";
+            return;
+        }
+
         // Form the original message string
         $crc32 = hash('crc32', $payload);
         $message = $transmissionId . '|' . $timeStamp . '|' . $webhookId . '|' . $crc32;
@@ -224,7 +237,7 @@ class myOrder
 
         // Verify the signature
         $pubKey = openssl_pkey_get_public($cert);
-        $isValid = openssl_verify($message, base64_decode($transmissionSig), $pubKey, $authAlgo);
+        $isValid = openssl_verify($message, base64_decode($transmissionSig), $pubKey, $opensslAlgo);
 
         if ($isValid === 1) {
             // Signature is valid
