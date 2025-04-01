@@ -201,13 +201,50 @@ class myOrder
         $payload = file_get_contents('php://input');
         $headers = getallheaders();
 
-        // Log the full payload and headers to Heroku logs
-        error_log("Headers: " . print_r($headers, true));
-        error_log("Payload: " . $payload);
+        // Extract required headers
+        $transmissionId = $headers['Paypal-Transmission-Id'] ?? '';
+        $timeStamp = $headers['Paypal-Transmission-Time'] ?? '';
+        $transmissionSig = $headers['Paypal-Transmission-Sig'] ?? '';
+        $certUrl = $headers['Paypal-Cert-Url'] ?? '';
+        $authAlgo = $headers['Paypal-Auth-Algo'] ?? '';
+        $webhookId = '80807288RF140422P'; // Replace with your actual webhook ID from PayPal Developer Dashboard
 
-        // Respond with a 200 status code to acknowledge receipt
-        http_response_code(200);
-        echo "Webhook received successfully.";
+        // Form the original message string
+        $crc32 = hash('crc32', $payload);
+        $message = $transmissionId . '|' . $timeStamp . '|' . $webhookId . '|' . $crc32;
+
+        // Fetch the certificate from PayPal
+        $cert = file_get_contents($certUrl);
+        if (!$cert) {
+            error_log("Failed to fetch PayPal certificate.");
+            http_response_code(400);
+            echo "Invalid certificate URL.";
+            return;
+        }
+
+        // Verify the signature
+        $pubKey = openssl_pkey_get_public($cert);
+        $isValid = openssl_verify($message, base64_decode($transmissionSig), $pubKey, $authAlgo);
+
+        if ($isValid === 1) {
+            // Signature is valid
+            error_log("Webhook signature verified successfully.");
+            error_log("Payload: " . $payload);
+
+            // Respond with a 200 status code
+            http_response_code(200);
+            echo "Webhook verified successfully.";
+        } elseif ($isValid === 0) {
+            // Signature is invalid
+            error_log("Invalid webhook signature.");
+            http_response_code(400);
+            echo "Invalid webhook signature.";
+        } else {
+            // Error during verification
+            error_log("Error verifying webhook signature: " . openssl_error_string());
+            http_response_code(500);
+            echo "Error verifying webhook signature.";
+        }
     }
 }
 
