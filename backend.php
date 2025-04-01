@@ -201,9 +201,9 @@ class myOrder
         $payload = file_get_contents('php://input');
         $headers = getallheaders();
 
-        // Log the full payload and headers for debugging
-        file_put_contents('webhook.log', "Headers:\n" . print_r($headers, true) . "\n", FILE_APPEND);
-        file_put_contents('webhook.log', "Payload:\n" . $payload . "\n\n", FILE_APPEND);
+        // Log the full payload and headers to Heroku logs
+        error_log("Headers: " . print_r($headers, true));
+        error_log("Payload: " . $payload);
 
         // Respond with a 200 status code to acknowledge receipt
         http_response_code(200);
