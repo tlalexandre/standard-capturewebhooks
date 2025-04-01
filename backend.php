@@ -195,6 +195,7 @@ class myOrder
         print_r($response);
     }
 
+
     public function webhookListener()
     {
         // Read the incoming webhook payload
@@ -207,7 +208,15 @@ class myOrder
         $transmissionSig = $headers['Paypal-Transmission-Sig'] ?? '';
         $certUrl = $headers['Paypal-Cert-Url'] ?? '';
         $authAlgo = $headers['Paypal-Auth-Algo'] ?? '';
-        $webhookId = '80807288RF140422P'; // Replace with your actual webhook ID from PayPal Developer Dashboard
+        $webhookId = '80807288RF140422P'; // Replace with your actual webhook ID
+
+        // Debugging logs
+        error_log("Transmission ID: " . $transmissionId);
+        error_log("Timestamp: " . $timeStamp);
+        error_log("Signature: " . $transmissionSig);
+        error_log("Certificate URL: " . $certUrl);
+        error_log("Auth Algorithm: " . $authAlgo);
+        error_log("Raw Payload: " . $payload);
 
         // Map PayPal's auth algorithm to OpenSSL's algorithm
         $opensslAlgo = match ($authAlgo) {
@@ -225,6 +234,7 @@ class myOrder
         // Form the original message string
         $crc32 = hash('crc32', $payload);
         $message = $transmissionId . '|' . $timeStamp . '|' . $webhookId . '|' . $crc32;
+        error_log("Original Message: " . $message);
 
         // Fetch the certificate from PayPal
         $cert = file_get_contents($certUrl);
@@ -237,23 +247,25 @@ class myOrder
 
         // Verify the signature
         $pubKey = openssl_pkey_get_public($cert);
+        if (!$pubKey) {
+            error_log("Failed to extract public key from certificate.");
+            http_response_code(400);
+            echo "Invalid public key.";
+            return;
+        }
+
         $isValid = openssl_verify($message, base64_decode($transmissionSig), $pubKey, $opensslAlgo);
 
         if ($isValid === 1) {
-            // Signature is valid
             error_log("Webhook signature verified successfully.");
             error_log("Payload: " . $payload);
-
-            // Respond with a 200 status code
             http_response_code(200);
             echo "Webhook verified successfully.";
         } elseif ($isValid === 0) {
-            // Signature is invalid
             error_log("Invalid webhook signature.");
             http_response_code(400);
             echo "Invalid webhook signature.";
         } else {
-            // Error during verification
             error_log("Error verifying webhook signature: " . openssl_error_string());
             http_response_code(500);
             echo "Error verifying webhook signature.";
