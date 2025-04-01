@@ -232,7 +232,7 @@ class myOrder
         }
 
         // Form the original message string
-        $crc32 = hash('crc32', $payload);
+        $crc32 = sprintf('%u', crc32($payload));
         $message = $transmissionId . '|' . $timeStamp . '|' . $webhookId . '|' . $crc32;
         error_log("Original Message: " . $message);
 
